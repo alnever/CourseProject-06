@@ -1,0 +1,174 @@
+---
+title: "ToothGrowth investigation"
+author: "Aleksei Neverov"
+output: 
+      pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(xtable)
+library(reshape2)
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.path="figure2/")
+knitr::opts_chunk$set(fig.width=7)
+knitr::opts_chunk$set(fig.height=4)
+```
+
+## Synopsis
+
+This project investigates of the impact of the vitamin C on the tooth growth of guinea pigs. The review should determine (1) does the method of delivery of vitamin C: orange juice or ascorbic acid on the growth of teeth in guinea pigs, (2) and whether the dose of vitamin C important for the growth of teeth. The project is executed based on the data ToothGrows as a part of the course project for the course "Statistical Interference".
+
+## Exploratory Data Analysis
+```{r}
+data("ToothGrowth")
+ToothGrowth$dose <- factor(ToothGrowth$dose)
+dim(ToothGrowth)
+str(ToothGrowth)
+```
+
+To apply t-criteria analysis we should be sure, that the given data are from the normal distributed population. If we have a look at the density funtion (see the plot bellow) so we can notice that density function of the given distribution are close to the function of the normal distribution:
+
+```{r echo=FALSE, fig.width=4, fig.height=3}
+g <- ggplot(ToothGrowth,aes(x = len))
+g <- g + geom_histogram(aes(y = ..density..),color = "skyblue3", fill = "skyblue3", binwidth = 3)
+g <- g + geom_density(lwd = 2)
+g <- g + labs(title = "Tooth Growth distribution")
+print(g)
+```
+
+More evidance about nomality of the distribution we can obtain from the Q-Q plot and Shapiro–Wilk test:
+
+```{r echo = FALSE, fig.width=4, fig.height=3}
+p <- ggplot(ToothGrowth, aes(sample = len))
+p <- p + stat_qq()
+p <- p + labs(title = "Normal Q-Q plot")
+print(p)
+```
+
+```{r}
+shapiro.test(ToothGrowth$len)
+```
+
+From the Q-Q plot and p-value of the Shapiro–Wilk test (p-value > 0.05) we can conclude that this data came from the normal distributed population.Also you can suguess which of the factors have a greater influence on the growth of teeth of Guinea pigs:
+
+```{r echo = FALSE, fig.width=4, fig.height=3}
+g <- ggplot(ToothGrowth, aes(x = dose, y = len))
+g <- g + geom_boxplot(aes(fill = supp))
+g <- g + facet_wrap( ~ supp)
+g <- g + labs(title = "Impact of the Vitamin C on Tooth Growth")
+print(g)
+```
+
+As shows the graph above, when you increase the dose with any delivering method also increases the teeth growth. This graph shows that the difference in the increase in single dose orange juice (OJ) and ascorbic acid (VC) are not much different from each other.
+
+## Key Assumptions
+
+1. The general population has a normal distribution.
+1. Variances of different subsets of data are different for every subset (by doses and/or delivery methods).
+1. Sample lengths of every subsets of data are t-distributed.
+1. Different subsets contains independent data and have a different length, so we use unpaired test.
+
+## Hypothesis Tests
+
+**HO: The delivery method doesn't impact the thooth grows.**
+
+```{r}
+t.test(ToothGrowth$len ~ ToothGrowth$supp)
+```
+
+The 95%-confidential interval for different of means from groups with different delivery method contains zero, morethan the p-value is greater than 0.05, so we fail to reject hypotesis H0. 
+
+**HO: The dose of vitamin C doesn't impact the tooth grows for both type of suppliment types.**
+
+In fact we'll try too proof six hypothetis of type "The dose *i* of vitamine C dilivered with method *s* doesn't impact the tooth grows". The function providing this analysis is in Appendix A.
+
+```{r echo = FALSE}
+ttest <- function(){
+      # Create empty matrix 
+      res <- matrix(nrow = 0, ncol = 5)
+      # Select every suppliment methods
+      for(s in levels(ToothGrowth$supp)) {
+            # Select every dose of vitamin C
+            for(i in 1:length(levels(ToothGrowth$dose))) {
+                  # Create pair of doses to compare means
+                  if (i<length(levels(ToothGrowth$dose))) j <- i + 1
+                  else { 
+                        j <- i 
+                        i <- 1
+                  }
+                  dosei <- levels(ToothGrowth$dose)[i]
+                  dosej <- levels(ToothGrowth$dose)[j]
+                  # Subset data for given supp and pair of doses
+                  subdata <- 
+                        ToothGrowth[(ToothGrowth$dose == dosei | ToothGrowth$dose == dosej) 
+                                    & ToothGrowth$supp == s,]
+                  r <- t.test(subdata$len ~ subdata$dose)
+                  # Append data to result table
+                  res <- rbind(res,c(s,
+                                     paste(dosei,"-",dosej),
+                                     round(r$conf.int[1],3),
+                                     round(r$conf.int[2],3),
+                                     round(r$p.value,3)))
+            }
+      }
+      # Prepare dataset to return
+      res <- as.data.frame(res)
+      names(res) <- c("Suppliment","Doses","CI.start","CI.end","P.value")
+      res
+}
+```
+
+```{r echo = FALSE}
+ttest()
+```
+
+As we can see from the table above, neither from the confidential intervals contains zero and neither p-value for pairs "Delivery method - Dose" are greater than 0,05. So we reject every H0 hypothesises.
+
+## Conclusions
+
+1. The delivery method of the vitamin C - orange juice or ascorbic acid, doesn't impact the tooth growth of the guinea pigs.
+1. Changing of the dose of the vitamin C impact the tooth growth of the guinea pigs independent from the delivery method.
+
+\newpage
+#Apendix A
+```{r echo}
+## Function for execution t.test for every delivery method
+## and every dose of the vitamin C delivered via these methods
+
+ttest <- function(){
+      # Create empty matrix 
+      res <- matrix(nrow = 0, ncol = 5)
+      # Select every delivery methods
+      for(s in levels(ToothGrowth$supp)) {
+            # Select every dose of vitamin C
+            for(i in 1:length(levels(ToothGrowth$dose))) {
+                  # Create pair of doses to compare means
+                  if (i<length(levels(ToothGrowth$dose))) j <- i + 1
+                  else { 
+                        j <- i 
+                        i <- 1
+                  }
+                  dosei <- levels(ToothGrowth$dose)[i]
+                  dosej <- levels(ToothGrowth$dose)[j]
+                  # Subset data for given supp and pair of doses
+                  subdata <- 
+                        ToothGrowth[(ToothGrowth$dose == dosei | ToothGrowth$dose == dosej) 
+                                    & ToothGrowth$supp == s,]
+                  r <- t.test(subdata$len ~ subdata$dose)
+                  # Append data to result table
+                  res <- rbind(res,c(s,
+                                     paste(dosei,"-",dosej),
+                                     round(r$conf.int[1],3),
+                                     round(r$conf.int[2],3),
+                                     round(r$p.value,3)))
+            }
+      }
+      # Prepare dataset to return
+      res <- as.data.frame(res)
+      names(res) <- c("Delivery.method","Doses","CI.start","CI.end","P.value")
+      res
+}
+```

@@ -1,0 +1,288 @@
+---
+title: "Investigation of the exponential distribution and the Central Limit Theorem"
+author: "Aleksei Neverov"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(ggplot2)
+library(xtable)
+library(reshape2)
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.path="figure/")
+knitr::opts_chunk$set(fig.width=7)
+knitr::opts_chunk$set(fig.height=4)
+```
+
+## Synopsis
+
+In this project the exponential distribution is investigated in R and compared with the Central Limit Theorem (CLT). During the analysis was created the large collection of averages of exponential distributed values. The tasks of the project are (1) to investigate some statistics of sampling distribution and (2) to proof that this distribution is a normal distribution due the CLT.
+
+## Simulation
+
+```{r computetime, echo = FALSE}
+set.seed(1000)
+
+lambda = .2
+n <- 1000
+m <- 40
+```
+
+Let's calculate ```r n``` averages of exponential distributed samples with length = ```r m``` and rate = ```r lambda```, i.e. **sampling distribution**. To obtain this distribution we shoud take ```r n``` samples of exponential distributed values and calculate the mean value for each sample:
+
+```{r}
+means <- NULL
+for (i in 1 : n) means = c(means, mean(rexp(m, lambda)))
+```
+
+A full R-script for further analysis is given in Appendix A.
+
+## Sample Mean versus Theoretical Mean
+
+```{r echo = FALSE}
+## calculating of the theoretical mean 
+theor_mean <- 1/lambda
+
+## calculating of the sample mean 
+sample_mean <- mean(means)
+```
+
+Let's calculate theoretical and sampling means for sampling distribution. The plot below shows, how sampling and theoretical means relate to each other. It's obviously that means are very close: theoretical mean is ```r theor_mean``` and sampling mean is ```r round(sample_mean,3)```.
+
+```{r echo = FALSE}
+dmeans <- data.frame(means)
+
+## Draw the plot
+g <- ggplot(dmeans, aes(means))
+g <- g + geom_histogram(aes(y = ..density..), color = "skyblue4", fill = "skyblue4", alpha = .3, binwidth = .5)
+g <- g + geom_density(color = "black", lwd = 1.5)
+g <- g + geom_vline(aes(xintercept = sample_mean), color = "blue", lwd = 0.8)
+g <- g + geom_vline(aes(xintercept = theor_mean), color = "red", lwd = 0.5)
+g <- g + annotate("text",x=6.3, y=.48, label = paste("Sampling mean = ",round(sample_mean,3)) , color = "blue")
+g <- g + annotate("text",x=6.3, y=.5, label = paste("Theoretical mean = ",round(theor_mean,3)) , color = "red")
+g <- g + labs(title = "Comparison of sampling and theoretical means")
+g <- g + scale_x_continuous(breaks = round(seq(round(min(means)), round(max(means)), by = 1),1))
+print(g)
+```
+
+## Sample Variance versus Theoretical Variance
+
+Let's calculate theoretical and sample varianves for sampling distribution. In this case we calculate theoretical standard deviation as 1/(lambda*sqrt(n)), i.e. as a standard error of the sampling distribution mean. The variance we calculate as a square of the standard deviation.
+
+```{r echo = FALSE,showtable,results="asis"}
+
+## Calculate theoretical standard deviation for averages 
+theor_sd <- 1/(lambda * sqrt(m))
+
+## Calculate theoretical variance for averages
+theor_var <- theor_sd ^ 2
+
+## Combine theoretical statistics
+theor <- c(theor_sd, theor_var)
+
+## Calculating sample standard deviation and variance
+sample_sd <- sd(means)
+
+## Calculating sample variance
+sample_var <- sample_sd ^ 2
+
+## Combine sample statistics
+
+sstat <- c(sample_sd, sample_var)
+mtx <- cbind(theor, sstat)
+
+## Table printing
+tab <- xtable(mtx, caption = "Comparison of theoretical and sample variances")
+names(tab) <- c("Theoretical values","Sampling values")
+row.names(tab) <- c("Standard deviation", "Variance")
+print(tab, type="latex")
+```
+
+As we can see from the table, standard deviations and variances are very close each other. The same conclusion they can do from the box plot drawn for sampling and theoretical normal distributions. Boxes indicating the variancy of the variable are almost identical:
+
+```{r echo = FALSE}
+## Drawing boxplot to demonstrate variances
+tmeans <- rnorm(1000, theor_mean, theor_sd)
+t <- cbind(dmeans, tmeans)
+t <- melt(t[,c("means","tmeans")], id.vars = 0)
+t$variable <- as.character(t$variable)
+t$variable[t$variable == "means"] <- "Sampling distribution"
+t$variable[t$variable == "tmeans"] <- "Theoretical distribution"
+t$variable <- as.factor(t$variable)
+names(t) <- c("Distributions","Values")
+g <- ggplot(t, aes(x = Distributions, y = Values))
+g <- g + geom_boxplot()
+g <- g + scale_y_continuous(breaks = round(seq(round(min(means)), 
+                                               round(max(means)), 
+                                               by = 1),1))
+g <- g + labs(title="Comparison of variances of sampling and theoretical distributions")
+print(g)
+```
+
+## Distribution
+
+The next plot illustrates sampling distribution compared with the theoretical normal distribution having same mean and standard variation. The black line is used for drawing the density function of the sampling distribution. The pink line shows the density of the theoretical normal distribution with parameters N(```r theor_mean```, ```r round(theor_sd,3)``` ). It's obviously that lines for sampling and theoretical distributions are very close due the CLT:
+
+```{r echo = FALSE}
+## Calculating data for theoretical normal distribution
+normx <- seq(min(means), max(means), length=1000)
+normy <- dnorm(normx, mean=theor_mean, sd=theor_sd)
+
+## Draw the plot
+g <- ggplot(dmeans, aes(means))
+g <- g + geom_histogram(aes(y = ..density..), color = "skyblue4", fill = "skyblue4", alpha = .3, binwidth = .5)
+g <- g + geom_density(color = "black", lwd = 1.5)
+g <- g + geom_line(aes(x = normx, y = normy), color = "deeppink2", lwd = 1)
+g <- g + geom_vline(aes(xintercept = sample_mean), color = "blue", lwd = 0.8)
+g <- g + geom_vline(aes(xintercept = theor_mean), color = "red", lwd = 0.5)
+g <- g + annotate("text",x=6.3, y=.48, label = paste("Sampling mean = ",round(sample_mean,3)) , color = "blue")
+g <- g + annotate("text",x=6.3, y=.5, label = paste("Theoretical mean = ",round(theor_mean,3)) , color = "red")
+g <- g + labs(title = "Comparison of theoretical and sampling distributions")
+g <- g + scale_x_continuous(breaks = round(seq(round(min(means)), round(max(means)), by = 1),1))
+print(g)
+```
+
+The conclusion about normality of the sampling distribution we can make from the investigation of the Q-Q plot too, because the points of the plot are located almost on the same straight line:
+
+```{r echo = FALSE, fig.height=3, fig.width=5}
+p <- ggplot(dmeans, aes(sample = means))
+p <- p + stat_qq()
+p <- p + labs(title = "Normal Q-Q plot")
+print(p)
+```
+
+## Summaries
+
+At the end of analysis we can conclude:
+
+1. The distribution of large collection of averages of exponential distributed values (sampling distribution) is a normal distribution. So CLT works for this type of random values distribution.
+2. Sampling and theoretical statistics (means, variances and standard variations) are very close to each other.
+
+\newpage
+# Appendix A
+
+## R-script for analysis reproduction
+
+```{r simulatuion, results="hide"}
+library(knitr)
+library(ggplot2)
+library(xtable)
+
+## Setting simulation parameters
+set.seed(1000)
+
+lambda = .2 ## Rate
+n <- 1000   ## Number of elements in sampling 
+m <- 40     ## Number of exponential distributed values in every sample 
+
+## Creating sampling distribution
+means <- NULL
+for (i in 1 : n) means = c(means, mean(rexp(m, lambda)))
+
+## Plotting sampling distribution for comparison of means
+
+## calculating of the theoretical mean 
+theor_mean <- 1/lambda
+
+## calculating of the sample mean 
+sample_mean <- mean(means)
+
+dmeans <- data.frame(means)
+
+## Draw the plot for means comparison
+g <- ggplot(dmeans, aes(means))
+g <- g + geom_histogram(aes(y = ..density..), color = "skyblue4", 
+                        fill = "skyblue4", alpha = .3, binwidth = .5)
+g <- g + geom_density(color = "black", lwd = 1.5)
+g <- g + geom_vline(aes(xintercept = sample_mean), color = "blue", lwd = 0.8)
+g <- g + geom_vline(aes(xintercept = theor_mean), color = "red", lwd = 0.5)
+g <- g + annotate("text",x=6.3, y=.48, 
+                  label = paste("Sampling mean = ",round(sample_mean,3)) , 
+                  color = "blue")
+g <- g + annotate("text",x=6.3, y=.5, 
+                  label = paste("Theoretical mean = ",round(theor_mean,3)) , 
+                  color = "red")
+g <- g + labs(title = "Comparison of sampling and theoretical means")
+g <- g + scale_x_continuous(breaks = round(seq(round(min(means)), 
+                                     round(max(means)), 
+                                     by = 1),1))
+## print(g)
+
+### Calculating theoretical and sampling statistics
+## Calculate theoretical standard deviation for averages 
+theor_sd <- 1/(lambda * sqrt(m))
+
+## Calculate theoretical variance for averages
+theor_var <- theor_sd ^ 2
+
+## Combine theoretical statistics
+theor <- c(theor_sd, theor_var)
+
+## Calculating sample standard deviation and variance
+sample_sd <- sd(means)
+
+## Calculating sample variance
+sample_var <- sample_sd ^ 2
+
+## Combine sample statistics
+sstat <- c(sample_sd, sample_var)
+mtx <- cbind(theor, sstat)
+
+## Table printing
+tab <- xtable(mtx, caption = "Comparison of theoretical and sample variances")
+names(tab) <- c("Theoretical values","Sampling values")
+row.names(tab) <- c("Standard deviation", "Variance")
+## print(tab, type="latex")
+
+## Drawing boxplot to demonstrate variances
+tmeans <- rnorm(1000, theor_mean, theor_sd)
+t <- cbind(dmeans, tmeans)
+t <- melt(t[,c("means","tmeans")], id.vars = 0)
+t$variable <- as.character(t$variable)
+t$variable[t$variable == "means"] <- "Sampling distribution"
+t$variable[t$variable == "tmeans"] <- "Theoretical distribution"
+t$variable <- as.factor(t$variable)
+names(t) <- c("Distributions","Values")
+g <- ggplot(t, aes(x = Distributions, y = Values))
+g <- g + geom_boxplot()
+g <- g + scale_y_continuous(breaks = round(seq(round(min(means)), 
+                                               round(max(means)), 
+                                               by = 1),1))
+g <- g + labs(title="Comparison of variances of sampling and theoretical distributions")
+## print(g)
+
+### Drawing plots for comparison of theoretical and sampling distributions
+## Calculating data for theoretical normal distribution
+normx <- seq(min(means), max(means), length=1000)
+normy <- dnorm(normx, mean=theor_mean, sd=theor_sd)
+
+## Draw the plot
+g <- ggplot(dmeans, aes(means))
+g <- g + geom_histogram(aes(y = ..density..), color = "skyblue4", 
+                        fill = "skyblue4", alpha = .3, binwidth = .5)
+g <- g + geom_density(color = "black", lwd = 1.5)
+g <- g + geom_line(aes(x = normx, y = normy), color = "deeppink2", lwd = 1)
+g <- g + geom_vline(aes(xintercept = sample_mean), color = "blue", lwd = 0.8)
+g <- g + geom_vline(aes(xintercept = theor_mean), color = "red", lwd = 0.5)
+g <- g + annotate("text",x=6.3, y=.48, 
+                  label = paste("Sampling mean = ",round(sample_mean,3)) , 
+                  color = "blue")
+g <- g + annotate("text",x=6.3, y=.5, 
+                  label = paste("Theoretical mean = ",round(theor_mean,3)) , 
+                  color = "red")
+g <- g + labs(title = "Comparison of theoretical and sampling distributions")
+g <- g + scale_x_continuous(breaks = round(seq(round(min(means)), 
+                                     round(max(means)), 
+                                     by = 1),1))
+## print(g)
+
+## Draw QQ plot
+p <- ggplot(dmeans, aes(sample = means))
+p <- p + stat_qq()
+p <- p + labs(title = "Normal Q-Q plot")
+## print(p)
+```
+
